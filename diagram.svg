@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 420" width="980" height="420" font-family="Arial, Helvetica, sans-serif">
+  <rect x="0" y="0" width="980" height="420" fill="#ffffff"/>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c2410c"/>
+    </marker>
+  </defs>
+
+  <!-- Zon -->
+  <circle cx="70" cy="90" r="34" fill="#fde68a" stroke="#b45309" stroke-width="2"/>
+  <text x="70" y="96" text-anchor="middle" font-size="15" fill="#78350f">Zon</text>
+
+  <!-- Zonnepanelen -->
+  <rect x="160" y="60" width="140" height="60" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="230" y="95" text-anchor="middle" font-size="15" fill="#1e3a8a">Zonnepanelen</text>
+
+  <!-- Omvormer -->
+  <rect x="360" y="60" width="150" height="60" rx="8" fill="#eff6ff" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="435" y="90" text-anchor="middle" font-size="15" fill="#1e3a8a">Omvormer</text>
+  <text x="435" y="107" text-anchor="middle" font-size="11" fill="#1e3a8a">(SolarEdge, Modbus TCP)</text>
+
+  <!-- Huis -->
+  <rect x="620" y="20" width="160" height="60" rx="8" fill="#ecfdf5" stroke="#047857" stroke-width="2"/>
+  <text x="700" y="55" text-anchor="middle" font-size="15" fill="#065f46">Huis (verbruikers)</text>
+
+  <!-- Net / P1 -->
+  <rect x="620" y="110" width="160" height="60" rx="8" fill="#fef2f2" stroke="#b91c1c" stroke-width="2"/>
+  <text x="700" y="135" text-anchor="middle" font-size="15" fill="#7f1d1d">Net</text>
+  <text x="700" y="152" text-anchor="middle" font-size="11" fill="#7f1d1d">(P1-meter: teruglevering)</text>
+
+  <!-- Home Assistant -->
+  <rect x="330" y="260" width="240" height="90" rx="10" fill="#f5f3ff" stroke="#6d28d9" stroke-width="2"/>
+  <text x="450" y="295" text-anchor="middle" font-size="16" fill="#4c1d95" font-weight="bold">Home Assistant</text>
+  <text x="450" y="315" text-anchor="middle" font-size="12" fill="#4c1d95">PID-regelaar</text>
+  <text x="450" y="332" text-anchor="middle" font-size="11" fill="#4c1d95">elke 10 seconden</text>
+
+  <!-- arrows: Zon -> panelen -->
+  <line x1="104" y1="90" x2="156" y2="90" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- panelen -> omvormer -->
+  <line x1="300" y1="90" x2="356" y2="90" stroke="#334155" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- omvormer -> huis -->
+  <path d="M460,60 C500,30 560,30 616,45" fill="none" stroke="#047857" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="540" y="28" text-anchor="middle" font-size="11" fill="#065f46">eigen verbruik</text>
+
+  <!-- omvormer -> net -->
+  <path d="M460,115 C500,150 560,150 616,145" fill="none" stroke="#b91c1c" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="540" y="172" text-anchor="middle" font-size="11" fill="#7f1d1d">teruglevering (te minimaliseren)</text>
+
+  <!-- net -> HA (meting) -->
+  <path d="M700,170 C700,220 560,240 500,262" fill="none" stroke="#334155" stroke-width="2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+  <text x="640" y="225" text-anchor="middle" font-size="11" fill="#334155">meting</text>
+
+  <!-- HA -> omvormer (sturing) -->
+  <path d="M400,262 C330,200 330,160 380,122" fill="none" stroke="#c2410c" stroke-width="2.5" stroke-dasharray="2,5" marker-end="url(#arrowOrange)"/>
+  <text x="300" y="195" text-anchor="middle" font-size="11" fill="#c2410c">export-limiet</text>
+  <text x="300" y="209" text-anchor="middle" font-size="11" fill="#c2410c">bijsturen</text>
+
+  <!-- bottom labels -->
+  <text x="450" y="390" text-anchor="middle" font-size="12" fill="#475569">Meten → vergelijken met setpoint (≈0 W) → omvormer bijsturen → opnieuw meten</text>
+</svg>

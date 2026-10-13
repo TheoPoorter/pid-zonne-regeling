@@ -1,0 +1,92 @@
+# Voorbeeld-dashboard (Home Assistant "sections"-view) voor de PID
+# zero-export regeling. Pas de entity-ID's aan je eigen installatie aan.
+# Importeren: Instellingen > Dashboards > nieuw dashboard > "Nemen over" /
+# via de YAML-editor van een dashboard, of plak dit in een storage-mode
+# dashboard via de UI-editor (drie puntjes > Bewerken in YAML).
+
+title: PID Zero-Export
+views:
+  - path: pid-zero-export
+    title: PID Zero-Export
+    type: sections
+    max_columns: 4
+    sections:
+      - cards:
+          - type: heading
+            heading: "Ingang — meetwaarde & verbruikers"
+            heading_style: title
+            icon: mdi:transmission-tower-import
+          - type: history-graph
+            title: "Net vermogen vs. setpoint"
+            hours_to_show: 6
+            grid_options: { columns: full, rows: 3 }
+            entities:
+              - entity: sensor.p1_meter_power
+                name: "Teruglevering (P1)"
+              - entity: input_number.pid_setpoint_teruglevering
+                name: Setpoint
+          - type: tile
+            entity: sensor.pid_fout
+            name: "Regelfout (e)"
+            grid_options: { columns: 12, rows: 1 }
+
+      - cards:
+          - type: heading
+            heading: "PID-regelaar (kern)"
+            heading_style: title
+            icon: mdi:sine-wave
+          - type: entities
+            entities:
+              - entity: input_boolean.pid_solaredge_actief
+                name: "PID actief"
+              - entity: input_number.pid_setpoint_teruglevering
+                name: Setpoint
+              - entity: input_number.pid_kp
+                name: Kp
+              - entity: input_number.pid_ki
+                name: Ki
+              - entity: input_number.pid_kd
+                name: Kd
+              - entity: sensor.pid_p_term
+                name: "P-bijdrage"
+              - entity: sensor.pid_i_term
+                name: "I-bijdrage"
+              - entity: sensor.pid_d_term
+                name: "D-bijdrage"
+          - type: history-graph
+            title: "P / I / D verloop"
+            hours_to_show: 3
+            grid_options: { columns: full, rows: 3 }
+            entities:
+              - entity: sensor.pid_p_term
+                name: P
+              - entity: sensor.pid_i_term
+                name: I
+              - entity: sensor.pid_d_term
+                name: D
+
+      - cards:
+          - type: heading
+            heading: "Uitgang — naar omvormer"
+            heading_style: title
+            icon: mdi:transmission-tower-export
+          - type: gauge
+            entity: sensor.pid_output_vermogenslimiet
+            name: "Toegestane opbrengst (omvormer)"
+            min: 0
+            max: 100
+            severity: { green: 70, yellow: 30, red: 0 }
+          - type: sensor
+            entity: sensor.pid_output_vermogenslimiet
+            name: "Live verloop output (%)"
+            graph: line
+            detail: 1
+            grid_options: { columns: 12, rows: 2 }
+          - type: entities
+            entities:
+              - entity: input_number.pid_deadband
+                name: Deadband
+              - entity: input_number.pid_output_min
+                name: "Output min (klem)"
+              - entity: input_number.pid_output_max
+                name: "Output max (klem)"

@@ -1,0 +1,131 @@
+# PID zero-export regeling — optionele uitbreidingen
+#
+# Dit zijn BOUWSTENEN, geen kant-en-klare oplossing: elk onderdeel hieronder
+# verwijst naar entiteiten die specifiek zijn voor de apparaten van de
+# auteur (een airco, een CV-thermostaat, een accuset). Pas de entity-ID's
+# aan je eigen apparaten aan, of laat een blok gewoon weg als je het niet
+# gebruikt. Voeg dit NIET toe bovenop package_pid_core.yaml zonder eerst
+# de verwijzingen te controleren.
+
+# ---------------------------------------------------------------------
+# 1. Autotune — probeert Kp/Ki/Kd continu een klein beetje aan te passen
+#    en onthoudt welke combinatie de kleinste gemiddelde regelfout geeft.
+# ---------------------------------------------------------------------
+# input_boolean:
+#   pid_autotune_actief:
+#     name: PID Autotune Actief
+#     icon: mdi:brain
+#
+# input_select:
+#   pid_tune_parameter:
+#     name: PID Tune Parameter
+#     options: ["Kp", "Ki", "Kd"]
+#   pid_tune_fase:
+#     name: PID Tune Fase
+#     options: ["baseline", "plus", "minus"]
+#
+# input_number:
+#   pid_tune_beste_score: {min: 0, max: 1000000, step: 0.01, mode: box}
+#   pid_tune_venster_score: {min: 0, max: 1000000, step: 0.01, mode: box}
+#   pid_tune_venster_samples: {min: 0, max: 10000, step: 1, mode: box}
+#   pid_tune_stap_kp: {min: 0, max: 20, step: 0.001, mode: box}
+#   pid_tune_stap_ki: {min: 0, max: 5, step: 0.0001, mode: box}
+#   pid_tune_stap_kd: {min: 0, max: 10, step: 0.001, mode: box}
+#
+# Voeg dit toe als extra "if"-blok in de automatisering (vervang de
+# vermogen-sensor door die van je eigen omvormer, bv. de AC-opbrengst):
+#
+# - if:
+#     - condition: state
+#       entity_id: input_boolean.pid_autotune_actief
+#       state: "on"
+#     - condition: numeric_state
+#       entity_id: sensor.<omvormer>_vermogen
+#       above: 50
+#   then:
+#     - action: input_number.set_value
+#       target: {entity_id: input_number.pid_tune_venster_score}
+#       data:
+#         value: "{{ (states('input_number.pid_tune_venster_score')|float(0)) + (states('sensor.pid_fout')|float(0)|abs) * 10 }}"
+#     - action: input_number.set_value
+#       target: {entity_id: input_number.pid_tune_venster_samples}
+#       data:
+#         value: "{{ (states('input_number.pid_tune_venster_samples')|float(0)) + 1 }}"
+
+# ---------------------------------------------------------------------
+# 2. Geleerd sluipverbruik — een input_number die 's nachts automatisch
+#    bijleert wat het vaste basisverbruik van het huis is (koelkast,
+#    standby-apparatuur, etc.), zodat de regelaar daar rekening mee kan
+#    houden. Vervang de voorbeeldsensor door je eigen "alleen 's nachts
+#    geldige" verbruikssample.
+# ---------------------------------------------------------------------
+# input_number:
+#   pid_sluipverbruik_geleerd:
+#     name: PID Sluipverbruik Geleerd
+#     min: 0
+#     max: 1000
+#     step: 1
+#     unit_of_measurement: "W"
+#     icon: mdi:chart-line-variant
+#     mode: box
+#
+# Extra automatisering-actie (EMA-update, alleen als de nachtsample geldig is):
+#
+# - variables:
+#     nacht_geldig: "{{ not is_state('sensor.<jouw_nachtsample>', 'unavailable') and not is_state('sensor.<jouw_nachtsample>', 'unknown') }}"
+# - if:
+#     - condition: template
+#       value_template: "{{ nacht_geldig }}"
+#   then:
+#     - action: input_number.set_value
+#       target: {entity_id: input_number.pid_sluipverbruik_geleerd}
+#       data:
+#         value: "{{ (states('input_number.pid_sluipverbruik_geleerd')|float(183) * 0.98) + (states('sensor.<jouw_nachtsample>')|float(183) * 0.02) }}"
+
+# ---------------------------------------------------------------------
+# 3. Overschot nuttig inzetten — bijvoorbeeld een airco gratis laten
+#    verwarmen zodra er écht overschot is EN er warmte gevraagd wordt
+#    (hier via een CV-thermostaat climate.hc1). Vervang climate.hc1 en
+#    climate.<jouw_airco> door je eigen entiteiten.
+# ---------------------------------------------------------------------
+# input_boolean:
+#   pid_overschot_verwarmen_actief:
+#     name: Overschot inzetten voor verwarmen
+#     icon: mdi:fire
+#
+# input_datetime:
+#   pid_overschot_laatste_schakeling:
+#     name: Laatste schakelmoment
+#     has_date: true
+#     has_time: true
+#
+# Extra automatisering-acties (met minimaal 10 minuten tussen schakelingen
+# om kortcyclen te voorkomen):
+#
+# - variables:
+#     overschot_actief: "{{ is_state('input_boolean.pid_overschot_verwarmen_actief', 'on') }}"
+#     verbruiker_uit: "{{ is_state('climate.<jouw_airco>', 'off') }}"
+#     dwell_ok: "{{ state_attr('input_datetime.pid_overschot_laatste_schakeling', 'timestamp') is none or (now().timestamp() - state_attr('input_datetime.pid_overschot_laatste_schakeling', 'timestamp')) >= 600 }}"
+#     overschot: "{{ states('sensor.pid_output_vermogenslimiet') not in ['unknown','unavailable'] and (states('sensor.pid_output_vermogenslimiet')|float) <= 97 }}"
+#     geen_overschot: "{{ states('sensor.pid_output_vermogenslimiet') not in ['unknown','unavailable'] and (states('sensor.pid_output_vermogenslimiet')|float) >= 99.5 }}"
+#     warmtevraag: "{{ states('climate.hc1') in ['heat','auto'] and state_attr('climate.hc1','current_temperature') is not none and state_attr('climate.hc1','temperature') is not none and (state_attr('climate.hc1','current_temperature')|float) < (state_attr('climate.hc1','temperature')|float - 0.2) }}"
+# - if:
+#     - condition: template
+#       value_template: "{{ overschot_actief and dwell_ok and verbruiker_uit and warmtevraag and overschot }}"
+#   then:
+#     - action: climate.set_hvac_mode
+#       target: {entity_id: climate.<jouw_airco>}
+#       data: {hvac_mode: heat}
+#     - action: input_datetime.set_datetime
+#       target: {entity_id: input_datetime.pid_overschot_laatste_schakeling}
+#       data: {datetime: "{{ now() }}"}
+# - if:
+#     - condition: template
+#       value_template: "{{ overschot_actief and dwell_ok and not verbruiker_uit and (not warmtevraag or geen_overschot) }}"
+#   then:
+#     - action: climate.set_hvac_mode
+#       target: {entity_id: climate.<jouw_airco>}
+#       data: {hvac_mode: "off"}
+#     - action: input_datetime.set_datetime
+#       target: {entity_id: input_datetime.pid_overschot_laatste_schakeling}
+#       data: {datetime: "{{ now() }}"}

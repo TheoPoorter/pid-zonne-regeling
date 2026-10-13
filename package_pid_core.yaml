@@ -1,0 +1,180 @@
+# PID zero-export regeling — kernbestand
+#
+# Pas de volgende punten aan jouw eigen installatie aan voordat je dit gebruikt:
+#  - vervang "sensor.p1_meter_power" door jouw netto-vermogensensor
+#    (positief = afname van het net, negatief = teruglevering)
+#  - vervang "number.solaredge_se3500h_active_power_limit" door de entiteit
+#    van jouw omvormer die de export-limiet (0-100%) accepteert
+#
+# Plaats dit bestand in je Home Assistant "packages"-map (packages: !include_dir_named packages
+# moet aanstaan in configuration.yaml), of plak de inhoud in configuration.yaml.
+
+input_number:
+  pid_setpoint_teruglevering:
+    name: PID Setpoint Teruglevering
+    min: -2000
+    max: 1000
+    step: 10
+    unit_of_measurement: "W"
+    icon: mdi:target
+    mode: box
+  pid_kp:
+    name: PID Kp
+    min: 0
+    max: 20
+    step: 0.01
+    icon: mdi:alpha-p-circle
+    mode: box
+  pid_ki:
+    name: PID Ki
+    min: 0
+    max: 5
+    step: 0.001
+    icon: mdi:alpha-i-circle
+    mode: box
+  pid_kd:
+    name: PID Kd
+    min: 0
+    max: 10
+    step: 0.01
+    icon: mdi:alpha-d-circle
+    mode: box
+  pid_integral_staat:
+    name: PID Integral Staat
+    min: -100000
+    max: 100000
+    step: 1
+    icon: mdi:sigma
+    mode: box
+  pid_vorige_fout:
+    name: PID Vorige Fout
+    min: -10000
+    max: 10000
+    step: 1
+    icon: mdi:history
+    mode: box
+  pid_output_min:
+    name: PID Output Min
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    icon: mdi:arrow-collapse-down
+    mode: box
+  pid_output_max:
+    name: PID Output Max
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+    icon: mdi:arrow-collapse-up
+    mode: box
+  pid_laatste_schrijfwaarde:
+    name: PID Laatste Schrijfwaarde
+    min: 0
+    max: 100
+    step: 0.1
+    unit_of_measurement: "%"
+    icon: mdi:history
+    mode: box
+  pid_deadband:
+    name: PID Deadband
+    min: 1
+    max: 50
+    step: 1
+    unit_of_measurement: "%"
+    icon: mdi:arrow-split-vertical
+    mode: box
+
+input_boolean:
+  pid_solaredge_actief:
+    name: PID SolarEdge Actief
+    icon: mdi:tune-vertical
+
+template:
+  - sensor:
+      - name: "PID Fout"
+        unique_id: pid_fout
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        state: >
+          {{ (states('sensor.p1_meter_power')|float(0)) - (states('input_number.pid_setpoint_teruglevering')|float(0)) }}
+
+      - name: "PID P Term"
+        unique_id: pid_p_term
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {{ (states('input_number.pid_kp')|float(0)) * (states('sensor.pid_fout')|float(0)) }}
+
+      - name: "PID I Term"
+        unique_id: pid_i_term
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {{ (states('input_number.pid_ki')|float(0)) * (states('input_number.pid_integral_staat')|float(0)) }}
+
+      - name: "PID D Term"
+        unique_id: pid_d_term
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {{ (states('input_number.pid_kd')|float(0)) * ((states('sensor.pid_fout')|float(0)) - (states('input_number.pid_vorige_fout')|float(0))) / 10 }}
+
+      - name: "PID Output Vermogenslimiet"
+        unique_id: pid_output_vermogenslimiet
+        unit_of_measurement: "%"
+        state_class: measurement
+        state: >
+          {% set raw = 100 + (states('sensor.pid_p_term')|float(0)) + (states('sensor.pid_i_term')|float(0)) + (states('sensor.pid_d_term')|float(0)) %}
+          {% set lo = states('input_number.pid_output_min')|float(0) %}
+          {% set hi = states('input_number.pid_output_max')|float(100) %}
+          {{ [[raw, lo]|max, hi]|min | round(1) }}
+
+automation:
+  - alias: "PID Zero-Export Regeling"
+    description: >
+      Houdt de I- en D-staat van de PID-regelaar elke 10 seconden bij en
+      schrijft de berekende export-limiet naar de omvormer, maar alleen als
+      de omvormer-entiteit bestaat, de regelaar actief staat, EN de nieuwe
+      waarde minstens de deadband afwijkt van de laatst geschreven waarde.
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        seconds: "/10"
+    actions:
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.pid_integral_staat
+        data:
+          value: >
+            {{ [[ (states('input_number.pid_integral_staat')|float(0)) + (states('sensor.pid_fout')|float(0)) * 10, -100000] | max, 100000] | min }}
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.pid_vorige_fout
+        data:
+          value: "{{ states('sensor.pid_fout')|float(0) }}"
+      - if:
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: number.solaredge_se3500h_active_power_limit
+                state: ["unavailable", "unknown"]
+          - condition: state
+            entity_id: input_boolean.pid_solaredge_actief
+            state: "on"
+          - condition: template
+            value_template: >
+              {{ (states('sensor.pid_output_vermogenslimiet')|float(100) - states('input_number.pid_laatste_schrijfwaarde')|float(0))|abs >= states('input_number.pid_deadband')|float(8) }}
+        then:
+          - action: number.set_value
+            target:
+              entity_id: number.solaredge_se3500h_active_power_limit
+            data:
+              value: "{{ states('sensor.pid_output_vermogenslimiet')|float(100) }}"
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.pid_laatste_schrijfwaarde
+            data:
+              value: "{{ states('sensor.pid_output_vermogenslimiet')|float(100) }}"
